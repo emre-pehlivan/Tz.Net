@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Tz.Net.Extensions;
 using Tz.Net.Security;
+using Tz.Net.Internal;
 
 namespace Tz.Net
 {
@@ -222,5 +223,10 @@ namespace Tz.Net
         /// Get or set the provider address to make RPC calls to. Default is http://localhost:8732.
         /// </summary>
         public string Provider { get; set; } = Rpc.DefaultProvider;
+
+        public static Wallet FromStringSeed(string seed, byte[] prefix = null)
+        {
+            return new Wallet(B58C.Decode(seed, prefix ?? Prefix.edsk));
+        }
     }
 }

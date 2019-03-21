@@ -1,4 +1,6 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using System;
+using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
 
 namespace Tz.Net.Internal.OperationResultHandlers
 {
@@ -11,6 +13,15 @@ namespace Tz.Net.Internal.OperationResultHandlers
             SendTransactionOperationResult result = new SendTransactionOperationResult(appliedOp);
 
             JToken opResult = appliedOp["metadata"]?["operation_result"];
+            /*
+            if (opResult?["status"]?.ToString() == "failed")
+            {
+                foreach (JObject error in opResult["errors"])
+                {
+                    error["contractCode"] = "";
+                }
+            }
+            //*/
             result.Status = opResult?["status"]?.ToString() ?? result.Status;
             result.ConsumedGas = opResult?["consumed_gas"]?.ToString() ?? result.ConsumedGas;
             result.Succeeded = result.Status == "applied";

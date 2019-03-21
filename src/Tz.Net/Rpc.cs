@@ -32,7 +32,8 @@ namespace Tz.Net
         private static Dictionary<string, IOperationHandler> _opHandlers = new Dictionary<string, IOperationHandler>
         {
             {  Operations.ActivateAccount, new ActivateAccountOperationHandler() },
-            {  Operations.Transaction, new TransactionOperationHandler() }
+            {  Operations.Transaction, new TransactionOperationHandler() },
+            {  Operations.Reveal, new RevealOperationHandler() }
         };
 
         private readonly string _provider;
@@ -79,6 +80,10 @@ namespace Tz.Net
         {
             return await QueryJ<JObject>($"chains/{_chain}/blocks/head/header");
         }
+        public async Task<JObject> GetBlockById(string id)
+        {
+            return await QueryJ<JObject>($"chains/{_chain}/blocks/{id}");
+        }
 
         public async Task<JObject> GetAccountForBlock(string blockHash, string address)
         {
@@ -120,8 +125,8 @@ namespace Tz.Net
 
             return sendResults.LastOrDefault() as ActivateAccountOperationResult;
         }
-
-        public async Task<SendTransactionOperationResult> SendTransaction(Keys keys, string from, string to, BigFloat amount, BigFloat fee, BigFloat gasLimit = null, BigFloat storageLimit = null)
+      
+        public async Task<SendTransactionOperationResult> SendTransaction(Keys keys, string from, string to, BigFloat amount, BigFloat fee, BigFloat gasLimit = null, BigFloat storageLimit = null, JObject param = null)
         {
             gasLimit = gasLimit ?? 200;
             storageLimit = storageLimit ?? 0;
@@ -155,19 +160,24 @@ namespace Tz.Net
             JObject transaction = new JObject();
             operations.Add(transaction);
 
-            transaction["destination"] = to;
-            transaction["amount"] = new BigFloat(amount.ToMicroTez().ToString(6)).Round().ToString(); // Convert to microtez, truncate at 6 digits, round up
-            transaction["storage_limit"] = storage;
-            transaction["gas_limit"] = gas;
-            transaction["counter"] = (++counter).ToString();
-            transaction["fee"] = fee.ToString();
-            transaction["source"] = from;
             transaction["kind"] = Operations.Transaction;
+            transaction["source"] = from;
+            transaction["fee"] = fee.ToString();
+            transaction["counter"] = (++counter).ToString();
+            transaction["gas_limit"] = gas;
+            transaction["storage_limit"] = storage;
+            transaction["amount"] = new BigFloat(amount.ToMicroTez().ToString(6)).Round().ToString(); // Convert to microtez, truncate at 6 digits, round up
+            transaction["destination"] = to;
 
-            JObject parameters = new JObject();
-            transaction["parameters"] = parameters;
-            parameters["prim"] = "Unit";
-            parameters["args"] = new JArray(); // No args for this contract.
+            if (param != null)
+                transaction["parameters"] = param;
+            else
+            {
+                JObject parameters = new JObject();
+                transaction["parameters"] = parameters;
+                parameters["prim"] = "Unit";
+                parameters["args"] = new JArray(); // No args for this contract.
+            }
 
             List<OperationResult> sendResults = await SendOperations(operations, keys, head);
 
@@ -176,8 +186,6 @@ namespace Tz.Net
 
         private async Task<List<OperationResult>> SendOperations(JToken operations, Keys keys, JObject head = null)
         {
-            JObject result = new JObject();
-
             if (head == null)
             {
                 head = await GetHeader();
@@ -209,9 +217,26 @@ namespace Tz.Net
 
             List<OperationResult> opResults = await PreApplyOperations(head, arrOps, signedOpGroup.EncodedSignature);
 
+            ///deleting too big contractCode from response
+            foreach (var opResult in opResults)
+            {
+                if (opResult.Data?["metadata"]?["operation_result"]?["status"]?.ToString() == "failed")
+                {
+                    foreach (JObject error in opResult.Data["metadata"]["operation_result"]["errors"])
+                    {
+                        if (error["contractCode"]?.ToString().Length > 1000)
+                            error["contractCode"] = "";
+                    }
+                }
+            }
+
+            string op_hash = "";
+
             if (opResults.All(op => op.Succeeded))
             {
                 JToken injectedOperation = await InjectOperations(signedOpGroup.SignedBytes);
+                op_hash = injectedOperation.ToString();
+                opResults.LastOrDefault().Data["op_hash"] = op_hash;
             }
 
             return opResults;
@@ -312,7 +337,7 @@ namespace Tz.Net
 
             if (response?.IsSuccessStatusCode == false)
             {
-                // If failed, throw the body as the exception message.
+                 // If failed, throw the body as the exception message.
                 if (!string.IsNullOrWhiteSpace(responseBody))
                 {
                     throw new HttpRequestException(responseBody);
