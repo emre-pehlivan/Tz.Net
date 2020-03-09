@@ -125,7 +125,7 @@ namespace Tz.Net
 
             return sendResults.LastOrDefault() as ActivateAccountOperationResult;
         }
-      
+
         public async Task<SendTransactionOperationResult> SendTransaction(Keys keys, string from, string to, BigFloat amount, BigFloat fee, BigFloat gasLimit = null, BigFloat storageLimit = null, JObject param = null)
         {
             gasLimit = gasLimit ?? 200;
@@ -143,7 +143,7 @@ namespace Tz.Net
             string gas = gasLimit.ToString();
             string storage = storageLimit.ToString();
 
-            if (keys != null && managerKey["key"] == null)
+            if (keys != null && string.IsNullOrEmpty(managerKey.ToString()))
             {
                 JObject revealOp = new JObject();
                 operations.AddFirst(revealOp);
@@ -173,10 +173,11 @@ namespace Tz.Net
                 transaction["parameters"] = param;
             else
             {
-                JObject parameters = new JObject();
-                transaction["parameters"] = parameters;
-                parameters["prim"] = "Unit";
-                parameters["args"] = new JArray(); // No args for this contract.
+                // TODO: this one fails on run time
+                //JObject parameters = new JObject();
+                //transaction["parameters"] = parameters;
+                //parameters["prim"] = "Unit";
+                //parameters["args"] = new JArray(); // No args for this contract.
             }
 
             List<OperationResult> sendResults = await SendOperations(operations, keys, head);
@@ -199,21 +200,23 @@ namespace Tz.Net
 
             JToken forgedOpGroup = await ForgeOperations(head, arrOps);
 
-            SignedMessage signedOpGroup;
+            // TODO: Not sure about what is this for
+            //if (keys == null)
+            //{
+            //    signedOpGroup = new SignedMessage
+            //    {
+            //        SignedBytes = forgedOpGroup.ToString() + "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            //        EncodedSignature = "edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q"
+            //    };
+            //}
+            //else
+            //{
+            //    Crypto c = new Crypto();
+            //    signedOpGroup = c.Sign(forgedOpGroup.ToString(), keys, Watermark.Generic);
+            //}
 
-            if (keys == null)
-            {
-                signedOpGroup = new SignedMessage
-                {
-                    SignedBytes = forgedOpGroup.ToString() + "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                    EncodedSignature = "edsigtXomBKi5CTRf5cjATJWSyaRvhfYNHqSUGrn4SdbYRcGwQrUGjzEfQDTuqHhuA8b2d8NarZjz8TRf65WkpQmo423BtomS8Q"
-                };
-            }
-            else
-            {
-                Crypto c = new Crypto();
-                signedOpGroup = c.Sign(forgedOpGroup.ToString(), keys, Watermark.Generic);
-            }
+            Crypto c = new Crypto();
+            SignedMessage signedOpGroup = c.Sign(forgedOpGroup.ToString(), keys, Watermark.Generic);
 
             List<OperationResult> opResults = await PreApplyOperations(head, arrOps, signedOpGroup.EncodedSignature);
 
@@ -337,7 +340,7 @@ namespace Tz.Net
 
             if (response?.IsSuccessStatusCode == false)
             {
-                 // If failed, throw the body as the exception message.
+                // If failed, throw the body as the exception message.
                 if (!string.IsNullOrWhiteSpace(responseBody))
                 {
                     throw new HttpRequestException(responseBody);
