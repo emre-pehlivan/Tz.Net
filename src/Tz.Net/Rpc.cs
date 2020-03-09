@@ -71,6 +71,11 @@ namespace Tz.Net
             return await QueryJ<JObject>("describe?recurse=true");
         }
 
+        public async Task<JObject> GetMempool()
+        {
+            return await QueryJ<JObject>($"chains/{_chain}/mempool/pending_operations");
+        }
+
         public async Task<JObject> GetHead()
         {
             return await QueryJ<JObject>($"chains/{_chain}/blocks/head");
@@ -83,6 +88,21 @@ namespace Tz.Net
         public async Task<JObject> GetBlockById(string id)
         {
             return await QueryJ<JObject>($"chains/{_chain}/blocks/{id}");
+        }
+
+        public async Task<JArray> GetOperationsByBlockId(ulong id)
+        {
+            return await QueryJ<JArray>($"chains/{_chain}/blocks/{id}/operations");
+        }
+
+        public async Task<JArray> GetTransactionHashListByBlockId(ulong id)
+        {
+            return await QueryJ<JArray>($"chains/{_chain}/blocks/{id}/operation_hashes/3");
+        }
+
+        public async Task<JArray> GetTransactionsListByBlockId(ulong id)
+        {
+            return await QueryJ<JArray>($"chains/{_chain}/blocks/{id}/operations/3");
         }
 
         public async Task<JObject> GetAccountForBlock(string blockHash, string address)
